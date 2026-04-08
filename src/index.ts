@@ -16,8 +16,8 @@ import { register as registerSales } from "./tools/sales.js";
 import { register as registerMisc } from "./tools/misc.js";
 
 const server = new McpServer({
-  name: "fiken-mcp",
-  version: "1.0.0",
+    name: "fiken-mcp",
+    version: "1.0.0",
 });
 
 registerUser(server);

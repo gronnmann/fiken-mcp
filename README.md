@@ -43,16 +43,16 @@ Add the server to your AI client config. No installation needed — `npx`/`pnpx`
 
 ```json
 {
-  "mcpServers": {
-    "fiken": {
-      "command": "npx",
-      "args": ["-y", "fiken-mcp"],
-      "env": {
-        "FIKEN_API_TOKEN": "your-personal-token-here",
-        "FIKEN_COMPANY_SLUG": "your-company-slug"
-      }
+    "mcpServers": {
+        "fiken": {
+            "command": "npx",
+            "args": ["-y", "fiken-mcp"],
+            "env": {
+                "FIKEN_API_TOKEN": "your-personal-token-here",
+                "FIKEN_COMPANY_SLUG": "your-company-slug"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -60,16 +60,16 @@ Or with pnpm:
 
 ```json
 {
-  "mcpServers": {
-    "fiken": {
-      "command": "pnpx",
-      "args": ["fiken-mcp"],
-      "env": {
-        "FIKEN_API_TOKEN": "your-personal-token-here",
-        "FIKEN_COMPANY_SLUG": "your-company-slug"
-      }
+    "mcpServers": {
+        "fiken": {
+            "command": "pnpx",
+            "args": ["fiken-mcp"],
+            "env": {
+                "FIKEN_API_TOKEN": "your-personal-token-here",
+                "FIKEN_COMPANY_SLUG": "your-company-slug"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -79,16 +79,16 @@ Add to `~/.claude.json` under `mcpServers`:
 
 ```json
 {
-  "mcpServers": {
-    "fiken": {
-      "command": "npx",
-      "args": ["-y", "fiken-mcp"],
-      "env": {
-        "FIKEN_API_TOKEN": "your-personal-token-here",
-        "FIKEN_COMPANY_SLUG": "your-company-slug"
-      }
+    "mcpServers": {
+        "fiken": {
+            "command": "npx",
+            "args": ["-y", "fiken-mcp"],
+            "env": {
+                "FIKEN_API_TOKEN": "your-personal-token-here",
+                "FIKEN_COMPANY_SLUG": "your-company-slug"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -98,16 +98,16 @@ Add to `~/.cursor/mcp.json`:
 
 ```json
 {
-  "mcpServers": {
-    "fiken": {
-      "command": "npx",
-      "args": ["-y", "fiken-mcp"],
-      "env": {
-        "FIKEN_API_TOKEN": "your-personal-token-here",
-        "FIKEN_COMPANY_SLUG": "your-company-slug"
-      }
+    "mcpServers": {
+        "fiken": {
+            "command": "npx",
+            "args": ["-y", "fiken-mcp"],
+            "env": {
+                "FIKEN_API_TOKEN": "your-personal-token-here",
+                "FIKEN_COMPANY_SLUG": "your-company-slug"
+            }
+        }
     }
-  }
 }
 ```
 

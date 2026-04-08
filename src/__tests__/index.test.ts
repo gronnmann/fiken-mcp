@@ -7,7 +7,7 @@ const MockStdioTransport = vi.fn(() => ({}));
 
 vi.mock("@modelcontextprotocol/sdk/server/mcp.js", () => ({ McpServer: MockMcpServer }));
 vi.mock("@modelcontextprotocol/sdk/server/stdio.js", () => ({
-  StdioServerTransport: MockStdioTransport,
+    StdioServerTransport: MockStdioTransport,
 }));
 
 const registerUser = vi.fn();
@@ -37,36 +37,36 @@ vi.mock("../tools/sales.js", () => ({ register: registerSales }));
 vi.mock("../tools/misc.js", () => ({ register: registerMisc }));
 
 describe("index", () => {
-  beforeAll(async () => {
-    await import("../index.js");
-  });
+    beforeAll(async () => {
+        await import("../index.js");
+    });
 
-  it("creates McpServer with name and version", () => {
-    expect(MockMcpServer).toHaveBeenCalledWith({ name: "fiken-mcp", version: "1.0.0" });
-  });
+    it("creates McpServer with name and version", () => {
+        expect(MockMcpServer).toHaveBeenCalledWith({ name: "fiken-mcp", version: "1.0.0" });
+    });
 
-  it("creates StdioServerTransport", () => {
-    expect(MockStdioTransport).toHaveBeenCalledOnce();
-  });
+    it("creates StdioServerTransport", () => {
+        expect(MockStdioTransport).toHaveBeenCalledOnce();
+    });
 
-  it("calls server.connect with the transport", () => {
-    expect(mockConnect).toHaveBeenCalledOnce();
-    expect(mockConnect).toHaveBeenCalledWith(MockStdioTransport.mock.results[0].value);
-  });
+    it("calls server.connect with the transport", () => {
+        expect(mockConnect).toHaveBeenCalledOnce();
+        expect(mockConnect).toHaveBeenCalledWith(MockStdioTransport.mock.results[0].value);
+    });
 
-  it("registers all 12 tool modules", () => {
-    const serverInstance = MockMcpServer.mock.results[0].value;
-    expect(registerUser).toHaveBeenCalledWith(serverInstance);
-    expect(registerAccounts).toHaveBeenCalledWith(serverInstance);
-    expect(registerContacts).toHaveBeenCalledWith(serverInstance);
-    expect(registerInvoices).toHaveBeenCalledWith(serverInstance);
-    expect(registerCreditNotes).toHaveBeenCalledWith(serverInstance);
-    expect(registerOffers).toHaveBeenCalledWith(serverInstance);
-    expect(registerOrderConfirmations).toHaveBeenCalledWith(serverInstance);
-    expect(registerJournalEntries).toHaveBeenCalledWith(serverInstance);
-    expect(registerTransactions).toHaveBeenCalledWith(serverInstance);
-    expect(registerPurchases).toHaveBeenCalledWith(serverInstance);
-    expect(registerSales).toHaveBeenCalledWith(serverInstance);
-    expect(registerMisc).toHaveBeenCalledWith(serverInstance);
-  });
+    it("registers all 12 tool modules", () => {
+        const serverInstance = MockMcpServer.mock.results[0].value;
+        expect(registerUser).toHaveBeenCalledWith(serverInstance);
+        expect(registerAccounts).toHaveBeenCalledWith(serverInstance);
+        expect(registerContacts).toHaveBeenCalledWith(serverInstance);
+        expect(registerInvoices).toHaveBeenCalledWith(serverInstance);
+        expect(registerCreditNotes).toHaveBeenCalledWith(serverInstance);
+        expect(registerOffers).toHaveBeenCalledWith(serverInstance);
+        expect(registerOrderConfirmations).toHaveBeenCalledWith(serverInstance);
+        expect(registerJournalEntries).toHaveBeenCalledWith(serverInstance);
+        expect(registerTransactions).toHaveBeenCalledWith(serverInstance);
+        expect(registerPurchases).toHaveBeenCalledWith(serverInstance);
+        expect(registerSales).toHaveBeenCalledWith(serverInstance);
+        expect(registerMisc).toHaveBeenCalledWith(serverInstance);
+    });
 });
