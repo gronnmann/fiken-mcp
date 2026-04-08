@@ -7,7 +7,7 @@ A Model Context Protocol (MCP) server that connects AI assistants like **Claude*
 
 All mutating operations (POST, PUT, PATCH, DELETE) require explicit user approval before executing.
 
-**NOTE**:  This is an unofficial library and is not affiliated with or endorsed by Fiken AS. Use at own risk. 
+**NOTE**: This is an unofficial library and is not affiliated with or endorsed by Fiken AS. Use at own risk.
 
 **NOTE**: Built using Claude Code. Use at own risk.
 
