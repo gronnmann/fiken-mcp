@@ -1,0 +1,7 @@
+.dockerignore
+node_modules
+dist
+.gitignore
+.idea
+.prettierignore
+.claude/
