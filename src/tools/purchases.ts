@@ -21,28 +21,46 @@ function err(e: unknown) {
 }
 
 const purchaseLine = z.object({
-    description: z.string().optional(),
-    vatType: z.string().optional().describe('e.g. "HIGH", "NONE", "LOW"'),
-    netAmount: z.number().int().optional().describe("Net amount in NOK øre"),
+    description: z.string().describe("Description of the product or service"),
+    vatType: z.string().describe('e.g. "HIGH", "NONE", "LOW"'),
+    netPrice: z.number().int().optional().describe("Net amount in cents"),
     vat: z.number().int().optional().describe("VAT amount in NOK øre"),
-    grossAmount: z.number().int().optional().describe("Gross amount in NOK øre"),
     account: z.string().optional().describe('Account code, e.g. "6540"'),
+    netPriceInCurrency: z.number().int().optional().describe("Net amount in currency cents"),
+    vatInCurrency: z.number().int().optional().describe("VAT amount in currency cents"),
+    projectId: z.number().int().optional(),
+});
+
+const paymentSchema = z.object({
+    date: z.string().describe("Payment date YYYY-MM-DD"),
+    account: z.string().describe('Payment account, e.g. "1920:10001"'),
+    amount: z.number().int().describe("Amount paid in cents"),
+    amountInNok: z.number().int().optional().describe("NOK amount for foreign currency payments"),
+    currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
+    fee: z.number().int().optional().describe("Payment fee in NOK cents"),
+});
+
+const draftLine = z.object({
+    text: z.string().describe("Description of the sale/purchase line"),
+    vatType: z.string().describe('e.g. "HIGH", "NONE", "LOW"'),
+    incomeAccount: z.string().describe('Account code, e.g. "3000"'),
+    net: z.number().int().describe("Net amount in cents"),
+    gross: z.number().int().describe("Gross amount in cents"),
     projectId: z.number().int().optional(),
 });
 
 const draftSchema = z.object({
-    description: z.string().optional(),
-    purchaseDate: z.string().optional().describe("YYYY-MM-DD"),
+    invoiceIssueDate: z.string().optional().describe("YYYY-MM-DD"),
     dueDate: z.string().optional().describe("YYYY-MM-DD"),
-    supplier: z.object({ contactId: z.number().int() }).optional(),
-    cash: z.boolean().optional(),
-    paymentAccount: z.string().optional().describe('Account code for payment, e.g. "1920:10001"'),
-    identifier: z.string().optional().describe("Supplier invoice number"),
-    currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
-    lines: z.array(purchaseLine).optional(),
+    invoiceNumber: z.string().optional(),
+    contactId: z.number().int().optional().describe("Contact ID"),
     projectId: z.number().int().optional(),
-    paid: z.boolean().optional(),
-    paymentDate: z.string().optional().describe("YYYY-MM-DD"),
+    cash: z.boolean(),
+    currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
+    kid: z.string().optional().describe("Norwegian KID number"),
+    paid: z.boolean(),
+    payments: z.array(paymentSchema).optional(),
+    lines: z.array(draftLine),
 });
 
 const attachmentSchema = z
@@ -107,11 +125,12 @@ export function register(server: McpServer) {
                 dateLt: z.string().optional(),
                 dateGe: z.string().optional(),
                 dateGt: z.string().optional(),
-                lastModifiedLe: z.string().optional(),
-                lastModifiedGe: z.string().optional(),
-                supplierId: z.number().int().optional(),
                 paid: z.boolean().optional(),
-                kind: z.string().optional().describe('e.g. "supplier_purchase", "cash_purchase"'),
+                settledDate: z.string().optional().describe("YYYY-MM-DD"),
+                settledDateLe: z.string().optional(),
+                settledDateLt: z.string().optional(),
+                settledDateGe: z.string().optional(),
+                settledDateGt: z.string().optional(),
             }),
         },
         async (p) => {
@@ -129,22 +148,25 @@ export function register(server: McpServer) {
             ...W,
             description: "Creates a new purchase. Amounts in NOK øre.",
             inputSchema: z.object({
-                description: z.string().optional(),
-                kind: z
-                    .enum(["supplier_purchase", "cash_purchase", "foreign_purchase_credit_card"])
-                    .optional(),
-                transactionDate: z.string().describe("YYYY-MM-DD"),
+                identifier: z.string().optional().describe("Invoice/sale number or similar"),
+                date: z.string().describe("Payment date YYYY-MM-DD"),
                 dueDate: z.string().optional(),
-                supplier: z.object({ contactId: z.number().int() }).optional(),
-                cash: z.boolean().optional(),
-                paymentAccount: z.string().optional(),
-                bankAccountCode: z.string().optional(),
-                identifier: z.string().optional().describe("Supplier invoice number"),
-                currency: z.string().optional(),
+                kind: z
+                    .enum(["cash_purchase", "supplier"])
+                    .describe("Purchased with cash or through a supplier"),
                 lines: z.array(purchaseLine),
-                projectId: z.number().int().optional(),
-                paid: z.boolean().optional(),
+                supplierId: z.number().int().optional().describe("Supplier contact ID"),
+                currency: z.string().describe('ISO 4217, e.g. "NOK"'),
+                paymentAccount: z.string().optional(),
                 paymentDate: z.string().optional(),
+                paymentAmountInNok: z
+                    .number()
+                    .int()
+                    .optional()
+                    .describe("Required for foreign currency payment; cents in NOK"),
+                kid: z.string().optional().describe("Norwegian KID number"),
+                projectId: z.number().int().optional(),
+                paid: z.boolean(),
             }),
         },
         async (body) => {
@@ -177,11 +199,19 @@ export function register(server: McpServer) {
         {
             ...D,
             description: "Deletes a purchase",
-            inputSchema: z.object({ purchaseId: z.number().int() }),
+            inputSchema: z.object({
+                purchaseId: z.number().int(),
+                description: z.string().describe("Reason for deleting the purchase"),
+            }),
         },
-        async ({ purchaseId }) => {
+        async ({ purchaseId, description }) => {
             try {
-                return ok(await mutate("DELETE", cp(`/purchases/${purchaseId}`)));
+                return ok(
+                    await mutate(
+                        "PATCH",
+                        `${cp(`/purchases/${purchaseId}/delete`)}?description=${encodeURIComponent(description)}`,
+                    ),
+                );
             } catch (e) {
                 return err(e);
             }

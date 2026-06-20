@@ -82,21 +82,26 @@ export function register(server: McpServer) {
             ...W,
             description: "Creates a new general journal entry. Amounts are in NOK øre (cents).",
             inputSchema: z.object({
-                description: z.string().describe("Description of the journal entry"),
-                journalEntryDate: z.string().describe("Date YYYY-MM-DD"),
                 open: z.boolean().optional().describe("Whether the entry is open"),
-                lines: z
+                journalEntries: z
                     .array(
                         z.object({
-                            amount: z.number().int().describe("Amount in NOK øre"),
-                            debitAccount: z.string().describe('Debit account code, e.g. "1920"'),
-                            debitVatCode: z.number().int().optional(),
-                            creditAccount: z.string().describe('Credit account code, e.g. "3000"'),
-                            creditVatCode: z.number().int().optional(),
-                            projectId: z.number().int().optional(),
+                            description: z.string().describe("Description of the journal entry"),
+                            date: z.string().describe("Date YYYY-MM-DD"),
+                            lines: z
+                                .array(
+                                    z.object({
+                                        amount: z.number().int().describe("Amount in NOK øre"),
+                                        debitAccount: z.string().optional(),
+                                        debitVatCode: z.number().int().optional(),
+                                        creditAccount: z.string().optional(),
+                                        creditVatCode: z.number().int().optional(),
+                                    }),
+                                )
+                                .describe("Journal entry lines"),
                         }),
                     )
-                    .describe("Journal entry lines (required, debits must equal credits)"),
+                    .describe("Journal entries"),
             }),
         },
         async (body) => {

@@ -18,9 +18,26 @@ function err(e: unknown) {
     };
 }
 
+const creditNoteLine = z.object({
+    incomeAccount: z.string().optional(),
+    vatType: z.string().optional(),
+    unitPrice: z.number().int(),
+    quantity: z.number(),
+    discount: z.number().optional(),
+    productId: z.number().int().optional(),
+    description: z.string().optional(),
+    comment: z.string().optional(),
+});
+
+const roundingType = z
+    .enum(["none", "round_half", "round_whole", "round_down_half", "round_down_whole"])
+    .optional();
+
 const draftSchema = z.object({
+    type: z.enum(["invoice", "cash_invoice", "offer", "order_confirmation", "credit_note"]),
+    uuid: z.string().optional(),
     issueDate: z.string().optional().describe("YYYY-MM-DD"),
-    daysUntilDueDate: z.number().int().optional(),
+    daysUntilDueDate: z.number().int(),
     invoiceText: z.string().optional(),
     yourReference: z.string().optional(),
     ourReference: z.string().optional(),
@@ -28,23 +45,27 @@ const draftSchema = z.object({
     lines: z
         .array(
             z.object({
+                invoiceishDraftLineId: z.number().int().optional(),
                 description: z.string().optional(),
-                netPrice: z.number().int().optional(),
-                vat: z.number().int().optional(),
-                vatType: z.string().optional(),
-                unit: z.string().optional(),
                 unitPrice: z.number().int().optional(),
-                quantity: z.number().optional(),
+                vatType: z.string().optional(),
+                quantity: z.number(),
                 discount: z.number().optional(),
                 productId: z.number().int().optional(),
-                account: z.string().optional(),
+                comment: z.string().optional(),
+                incomeAccount: z.string().optional(),
             }),
         )
         .optional(),
     currency: z.string().optional(),
-    contactId: z.number().int().optional(),
+    bankAccountNumber: z.string().optional(),
+    iban: z.string().optional(),
+    bic: z.string().optional(),
+    paymentAccount: z.string().optional(),
+    customerId: z.number().int().describe("Customer contact ID"),
     contactPersonId: z.number().int().optional(),
     projectId: z.number().int().optional(),
+    roundingType,
 });
 
 export function register(server: McpServer) {
@@ -98,11 +119,9 @@ export function register(server: McpServer) {
             ...W,
             description: "Creates a credit note covering the full amount of an invoice",
             inputSchema: z.object({
+                issueDate: z.string().describe("Issue date YYYY-MM-DD"),
                 invoiceId: z.number().int().describe("ID of the invoice to credit"),
                 creditNoteText: z.string().optional(),
-                ourReference: z.string().optional(),
-                yourReference: z.string().optional(),
-                project: z.object({ id: z.number().int() }).optional(),
             }),
         },
         async (body) => {
@@ -121,23 +140,18 @@ export function register(server: McpServer) {
             description:
                 "Creates a credit note for a partial amount of an invoice. Lines must total less than the original invoice.",
             inputSchema: z.object({
-                invoiceId: z.number().int().describe("ID of the invoice to partially credit"),
-                creditNoteText: z.string().optional(),
                 ourReference: z.string().optional(),
                 yourReference: z.string().optional(),
-                lines: z
-                    .array(
-                        z.object({
-                            description: z.string().optional(),
-                            netPrice: z.number().int().optional(),
-                            vat: z.number().int().optional(),
-                            vatType: z.string().optional(),
-                            account: z.string().optional(),
-                            unitPrice: z.number().int().optional(),
-                            quantity: z.number().optional(),
-                        }),
-                    )
-                    .optional(),
+                orderReference: z.string().optional(),
+                project: z.number().int().optional(),
+                currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
+                issueDate: z.string().describe("Issue date YYYY-MM-DD"),
+                invoiceId: z.number().int().optional().describe("ID of the invoice to credit"),
+                contactId: z.number().int().optional(),
+                contactPersonId: z.number().int().optional(),
+                creditNoteText: z.string().optional(),
+                lines: z.array(creditNoteLine),
+                roundingType,
             }),
         },
         async (body) => {
@@ -156,10 +170,15 @@ export function register(server: McpServer) {
             description: "Sends a credit note via email and/or EHF",
             inputSchema: z.object({
                 creditNoteId: z.number().int(),
-                method: z.array(z.enum(["email", "ehf", "auto"])),
+                method: z.array(z.enum(["email", "ehf", "efaktura", "sms", "letter", "auto"])),
+                includeDocumentAttachments: z.boolean(),
                 recipientName: z.string().optional(),
                 recipientEmail: z.string().optional(),
                 message: z.string().optional(),
+                emailSendOption: z.enum(["document_link", "attachment", "auto"]).optional(),
+                mergeInvoiceAndAttachments: z.boolean().optional(),
+                organizationNumber: z.string().optional(),
+                mobileNumber: z.string().optional(),
             }),
         },
         async (body) => {

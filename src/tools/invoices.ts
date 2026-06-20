@@ -19,29 +19,33 @@ function err(e: unknown) {
 }
 
 const invoiceLine = z.object({
-    description: z.string().optional(),
-    netPrice: z.number().int().optional().describe("Net price in NOK øre (cents)"),
-    vat: z.number().int().optional().describe("VAT amount in NOK øre"),
+    net: z.number().int().optional().describe("Net amount in cents"),
+    vat: z.number().int().optional().describe("VAT amount in cents"),
     vatType: z
         .string()
         .optional()
         .describe('VAT type, e.g. "HIGH", "NONE", "LOW", "EXEMPT_IMPORT_EXPORT"'),
-    unit: z.string().optional(),
-    unitPrice: z.number().int().optional().describe("Unit price in NOK øre"),
-    quantity: z.number().optional(),
+    gross: z.number().int().optional().describe("Gross amount in cents"),
+    vatInPercent: z.number().optional().describe("VAT percentage from 0 to 100"),
+    unitPrice: z.number().int().optional().describe("Unit price in cents"),
+    quantity: z.number(),
     discount: z.number().optional().describe("Discount percentage"),
+    productName: z.string().optional(),
     productId: z.number().int().optional(),
-    account: z.string().optional().describe('Account code, e.g. "3000"'),
+    description: z.string().optional(),
     comment: z.string().optional(),
     incomeAccount: z.string().optional(),
-    projectId: z.number().int().optional(),
 });
 
+const roundingType = z
+    .enum(["none", "round_half", "round_whole", "round_down_half", "round_down_whole"])
+    .optional();
+
 const draftSchema = z.object({
-    type: z.enum(["invoice", "offer", "order_confirmation", "credit_note"]).optional(),
+    type: z.enum(["invoice", "cash_invoice", "offer", "order_confirmation", "credit_note"]),
     uuid: z.string().optional(),
     issueDate: z.string().optional().describe("YYYY-MM-DD"),
-    daysUntilDueDate: z.number().int().optional(),
+    daysUntilDueDate: z.number().int(),
     invoiceText: z.string().optional(),
     yourReference: z.string().optional(),
     ourReference: z.string().optional(),
@@ -52,9 +56,10 @@ const draftSchema = z.object({
     iban: z.string().optional(),
     bic: z.string().optional(),
     paymentAccount: z.string().optional().describe("Account code for payment"),
-    contactId: z.number().int().optional(),
+    customerId: z.number().int().describe("Customer contact ID"),
     contactPersonId: z.number().int().optional(),
     projectId: z.number().int().optional(),
+    roundingType,
 });
 
 export function register(server: McpServer) {
@@ -97,24 +102,25 @@ export function register(server: McpServer) {
             ...W,
             description: "Creates a new invoice. Amounts are in NOK øre (cents).",
             inputSchema: z.object({
+                uuid: z.string().optional(),
                 issueDate: z.string().describe("Issue date YYYY-MM-DD (required)"),
-                dueDate: z.string().optional().describe("Due date YYYY-MM-DD"),
-                daysUntilDueDate: z.number().int().optional(),
+                dueDate: z.string().describe("Due date YYYY-MM-DD"),
                 lines: z.array(invoiceLine).describe("Invoice line items (required)"),
-                customerId: z.number().int().optional().describe("Contact ID of the customer"),
-                bankAccountCode: z.string().optional().describe("Bank account code for payment"),
-                cash: z.boolean().optional().describe("True if paid immediately by cash"),
-                invoiceText: z.string().optional(),
-                yourReference: z.string().optional(),
+                customerId: z.number().int().describe("Contact ID of the customer"),
+                bankAccountCode: z.string().describe("Bank account code for payment"),
+                cash: z.boolean().describe("True if paid immediately by cash"),
                 ourReference: z.string().optional(),
+                yourReference: z.string().optional(),
                 orderReference: z.string().optional(),
                 contactPersonId: z.number().int().optional(),
                 currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
+                invoiceText: z.string().optional(),
                 paymentAccount: z
                     .string()
                     .optional()
                     .describe("Account code, required if cash=true"),
                 projectId: z.number().int().optional(),
+                roundingType,
             }),
         },
         async (body) => {
@@ -151,7 +157,7 @@ export function register(server: McpServer) {
             description: "Updates an invoice (due date and/or manual send status)",
             inputSchema: z.object({
                 invoiceId: z.number().int(),
-                dueDate: z.string().optional().describe("New due date YYYY-MM-DD"),
+                newDueDate: z.string().optional().describe("New due date YYYY-MM-DD"),
                 sentManually: z.boolean().optional().describe("Mark invoice as manually sent"),
             }),
         },
@@ -190,13 +196,16 @@ export function register(server: McpServer) {
             inputSchema: z.object({
                 invoiceId: z.number().int(),
                 method: z
-                    .array(z.enum(["email", "ehf", "vipps", "efaktura", "auto"]))
+                    .array(z.enum(["email", "ehf", "efaktura", "sms", "letter", "auto"]))
                     .describe("Delivery methods"),
-                includeDocumentAttachments: z.boolean().optional(),
+                includeDocumentAttachments: z.boolean(),
                 recipientName: z.string().optional(),
                 recipientEmail: z.string().optional(),
                 message: z.string().optional(),
-                emailSendOption: z.string().optional(),
+                emailSendOption: z.enum(["document_link", "attachment", "auto"]).optional(),
+                mergeInvoiceAndAttachments: z.boolean().optional(),
+                organizationNumber: z.string().optional(),
+                mobileNumber: z.string().optional(),
             }),
         },
         async (body) => {

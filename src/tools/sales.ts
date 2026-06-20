@@ -19,26 +19,46 @@ function err(e: unknown) {
 }
 
 const saleLine = z.object({
-    description: z.string().optional(),
-    vatType: z.string().optional().describe('e.g. "HIGH", "NONE", "LOW"'),
-    netAmount: z.number().int().optional().describe("Net amount in NOK øre"),
+    description: z.string().describe("Description of the product or service"),
+    vatType: z.string().describe('e.g. "HIGH", "NONE", "LOW"'),
+    netPrice: z.number().int().optional().describe("Net amount in cents"),
     vat: z.number().int().optional(),
-    grossAmount: z.number().int().optional(),
     account: z.string().optional().describe('Account code, e.g. "3000"'),
+    netPriceInCurrency: z.number().int().optional().describe("Net amount in currency cents"),
+    vatInCurrency: z.number().int().optional().describe("VAT amount in currency cents"),
+    projectId: z.number().int().optional(),
+});
+
+const paymentSchema = z.object({
+    date: z.string().describe("Payment date YYYY-MM-DD"),
+    account: z.string().describe('Payment account, e.g. "1920:10001"'),
+    amount: z.number().int().describe("Amount paid in cents"),
+    amountInNok: z.number().int().optional().describe("NOK amount for foreign currency payments"),
+    currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
+    fee: z.number().int().optional().describe("Payment fee in NOK cents"),
+});
+
+const draftLine = z.object({
+    text: z.string().describe("Description of the sale/purchase line"),
+    vatType: z.string().describe('e.g. "HIGH", "NONE", "LOW"'),
+    incomeAccount: z.string().describe('Account code, e.g. "3000"'),
+    net: z.number().int().describe("Net amount in cents"),
+    gross: z.number().int().describe("Gross amount in cents"),
     projectId: z.number().int().optional(),
 });
 
 const draftSchema = z.object({
-    type: z.string().optional(),
-    date: z.string().optional().describe("YYYY-MM-DD"),
-    invoiceText: z.string().optional(),
-    currency: z.string().optional(),
-    paymentDate: z.string().optional().describe("YYYY-MM-DD"),
-    paymentFee: z.number().int().optional().describe("Payment fee in NOK øre"),
-    paymentAccount: z.string().optional(),
-    customer: z.object({ contactId: z.number().int() }).optional(),
+    invoiceIssueDate: z.string().optional().describe("YYYY-MM-DD"),
+    dueDate: z.string().optional().describe("YYYY-MM-DD"),
+    invoiceNumber: z.string().optional(),
+    contactId: z.number().int().optional().describe("Contact ID"),
     projectId: z.number().int().optional(),
-    lines: z.array(saleLine).optional(),
+    cash: z.boolean(),
+    currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
+    kid: z.string().optional().describe("Norwegian KID number"),
+    paid: z.boolean(),
+    payments: z.array(paymentSchema).optional(),
+    lines: z.array(draftLine),
 });
 
 export function register(server: McpServer) {
@@ -56,9 +76,12 @@ export function register(server: McpServer) {
                 dateLt: z.string().optional(),
                 dateGe: z.string().optional(),
                 dateGt: z.string().optional(),
+                lastModified: z.string().optional(),
                 lastModifiedLe: z.string().optional(),
+                lastModifiedLt: z.string().optional(),
                 lastModifiedGe: z.string().optional(),
-                customerId: z.number().int().optional(),
+                lastModifiedGt: z.string().optional(),
+                contactId: z.number().int().optional().describe("Customer contact ID"),
                 settled: z.boolean().optional(),
                 saleNumber: z.string().optional(),
             }),
@@ -79,17 +102,20 @@ export function register(server: McpServer) {
             description: "Creates a new sale. Amounts in NOK øre.",
             inputSchema: z.object({
                 date: z.string().describe("Sale date YYYY-MM-DD"),
-                kind: z.enum(["cash_sale", "invoice", "external_invoice"]).optional(),
+                kind: z.enum(["cash_sale", "invoice", "external_invoice"]),
                 totalPaid: z.number().int().optional().describe("Total paid in NOK øre"),
                 totalPaidInCurrency: z.number().int().optional(),
-                currency: z.string().optional(),
+                currency: z.string().describe('ISO 4217, e.g. "NOK"'),
                 saleNumber: z.string().optional(),
-                customer: z.object({ contactId: z.number().int() }).optional(),
+                customerId: z.number().int().optional().describe("Customer contact ID"),
+                dueDate: z.string().optional().describe("YYYY-MM-DD"),
+                kid: z.string().optional().describe("Norwegian KID number"),
                 paymentDate: z.string().optional(),
                 paymentFee: z.number().int().optional(),
                 paymentAccount: z.string().optional(),
                 projectId: z.number().int().optional(),
                 lines: z.array(saleLine),
+                paid: z.boolean(),
             }),
         },
         async (body) => {

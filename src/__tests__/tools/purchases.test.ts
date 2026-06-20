@@ -58,11 +58,14 @@ describe("fiken_create_purchase", () => {
             location: "/companies/test-slug/purchases/1",
         });
         const body = {
-            transactionDate: "2024-01-15",
+            date: "2024-01-15",
+            kind: "cash_purchase",
+            currency: "NOK",
+            paid: true,
             lines: [
                 {
                     description: "Office supplies",
-                    netAmount: 50000,
+                    netPrice: 50000,
                     vat: 12500,
                     vatType: "HIGH",
                     account: "6540",
@@ -77,7 +80,10 @@ describe("fiken_create_purchase", () => {
     it("returns error on failure", async () => {
         mockMutate.mockRejectedValue(new Error("Fiken 400: Bad Request"));
         const result = await server.getHandler("fiken_create_purchase")({
-            transactionDate: "2024-01-01",
+            date: "2024-01-01",
+            kind: "cash_purchase",
+            currency: "NOK",
+            paid: true,
             lines: [],
         });
         expect(result.isError).toBe(true);
@@ -101,10 +107,16 @@ describe("fiken_get_purchase", () => {
 });
 
 describe("fiken_delete_purchase", () => {
-    it("calls DELETE /purchases/{purchaseId}", async () => {
+    it("calls PATCH /purchases/{purchaseId}/delete with description", async () => {
         mockMutate.mockResolvedValue({ success: true });
-        const result = await server.getHandler("fiken_delete_purchase")({ purchaseId: 1 });
-        expect(mockMutate).toHaveBeenCalledWith("DELETE", "/companies/test-slug/purchases/1");
+        const result = await server.getHandler("fiken_delete_purchase")({
+            purchaseId: 1,
+            description: "Duplicate purchase",
+        });
+        expect(mockMutate).toHaveBeenCalledWith(
+            "PATCH",
+            "/companies/test-slug/purchases/1/delete?description=Duplicate%20purchase",
+        );
         expect(result.isError).toBeUndefined();
     });
 
@@ -268,7 +280,13 @@ describe("fiken_create_purchase_draft", () => {
             created: true,
             location: "/companies/test-slug/purchases/drafts/1",
         });
-        const body = { purchaseDate: "2024-01-15", supplier: { contactId: 10 } };
+        const body = {
+            invoiceIssueDate: "2024-01-15",
+            contactId: 10,
+            cash: false,
+            paid: false,
+            lines: [],
+        };
         const result = await server.getHandler("fiken_create_purchase_draft")(body);
         expect(mockMutate).toHaveBeenCalledWith(
             "POST",
@@ -304,11 +322,19 @@ describe("fiken_get_purchase_draft", () => {
 describe("fiken_update_purchase_draft", () => {
     it("calls PUT /purchases/drafts/{draftId} with body (draftId excluded)", async () => {
         mockMutate.mockResolvedValue({ success: true });
-        const input = { draftId: 1, purchaseDate: "2024-02-01", paymentAccount: "1920:10001" };
+        const input = {
+            draftId: 1,
+            invoiceIssueDate: "2024-02-01",
+            cash: true,
+            paid: true,
+            lines: [],
+        };
         const result = await server.getHandler("fiken_update_purchase_draft")(input);
         expect(mockMutate).toHaveBeenCalledWith("PUT", "/companies/test-slug/purchases/drafts/1", {
-            purchaseDate: "2024-02-01",
-            paymentAccount: "1920:10001",
+            invoiceIssueDate: "2024-02-01",
+            cash: true,
+            paid: true,
+            lines: [],
         });
         expect(result.isError).toBeUndefined();
     });

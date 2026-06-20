@@ -89,13 +89,17 @@ describe("fiken_create_journal_entry", () => {
             location: "/companies/test-slug/journalEntries/1",
         });
         const body = {
-            description: "Correction entry",
-            journalEntryDate: "2024-01-15",
-            lines: [
+            journalEntries: [
                 {
-                    amount: 100000,
-                    debitAccount: "1920",
-                    creditAccount: "3000",
+                    description: "Correction entry",
+                    date: "2024-01-15",
+                    lines: [
+                        {
+                            amount: 100000,
+                            debitAccount: "1920",
+                            creditAccount: "3000",
+                        },
+                    ],
                 },
             ],
         };
@@ -111,9 +115,7 @@ describe("fiken_create_journal_entry", () => {
     it("returns error on failure", async () => {
         mockMutate.mockRejectedValue(new Error("Fiken 400: Bad Request"));
         const result = await server.getHandler("fiken_create_journal_entry")({
-            description: "Bad",
-            journalEntryDate: "2024-01-01",
-            lines: [],
+            journalEntries: [{ description: "Bad", date: "2024-01-01", lines: [] }],
         });
         expect(result.isError).toBe(true);
     });
