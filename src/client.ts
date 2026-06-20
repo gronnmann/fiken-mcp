@@ -19,6 +19,17 @@ export function cp(path: string): string {
 
 type Params = Record<string, string | number | boolean | undefined | null>;
 
+async function parseMutationResponse(r: Response): Promise<unknown> {
+    if (!r.ok) throw new Error(`Fiken ${r.status}: ${await r.text()}`);
+    if (r.status === 204) return { success: true };
+    if (r.status === 201) return { created: true, location: r.headers.get("Location") };
+    try {
+        return await r.json();
+    } catch {
+        return { success: true };
+    }
+}
+
 export async function get(path: string, params?: Params): Promise<unknown> {
     const url = new URL(`${BASE}${path}`);
     if (params) {
@@ -42,12 +53,24 @@ export async function mutate(method: string, path: string, body?: unknown): Prom
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
     });
-    if (!r.ok) throw new Error(`Fiken ${r.status}: ${await r.text()}`);
-    if (r.status === 204) return { success: true };
-    if (r.status === 201) return { created: true, location: r.headers.get("Location") };
-    try {
-        return await r.json();
-    } catch {
-        return { success: true };
+    return parseMutationResponse(r);
+}
+
+export async function uploadMultipart(
+    path: string,
+    params: Params | undefined,
+    form: FormData,
+): Promise<unknown> {
+    const url = new URL(`${BASE}${path}`);
+    if (params) {
+        for (const [k, v] of Object.entries(params)) {
+            if (v != null) url.searchParams.set(k, String(v));
+        }
     }
+    const r = await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token()}` },
+        body: form,
+    });
+    return parseMutationResponse(r);
 }

@@ -4,7 +4,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
-import { get, mutate, cp, slug } from "../client.js";
+import { get, mutate, cp, slug, uploadMultipart } from "../client.js";
 
 function makeResponse(status: number, body: unknown, headers: Record<string, string> = {}) {
     const headersMap = new Map(Object.entries(headers));
@@ -212,6 +212,53 @@ describe("client", () => {
             await mutate("PATCH", "/path", { dueDate: "2024-12-31" });
             const [, init] = mockFetch.mock.calls[0];
             expect(init.method).toBe("PATCH");
+        });
+    });
+
+    describe("uploadMultipart()", () => {
+        it("throws when FIKEN_API_TOKEN is not set", async () => {
+            delete process.env.FIKEN_API_TOKEN;
+            await expect(
+                uploadMultipart("/companies/test-slug/purchases/1/attachments", {}, new FormData()),
+            ).rejects.toThrow("FIKEN_API_TOKEN environment variable is required");
+        });
+
+        it("sends POST with auth, query params, and multipart body", async () => {
+            mockFetch.mockResolvedValue(
+                makeResponse(201, null, {
+                    Location: "/companies/test-slug/purchases/1/attachments/2",
+                }),
+            );
+            const form = new FormData();
+            form.append("filename", "receipt.pdf");
+            form.append("file", new Blob([Buffer.from("pdf")]), "receipt.pdf");
+
+            const result = await uploadMultipart(
+                "/companies/test-slug/purchases/1/attachments",
+                { attachToPayment: false, attachToSale: true },
+                form,
+            );
+
+            const [url, init] = mockFetch.mock.calls[0];
+            const u = new URL(String(url));
+            expect(u.pathname).toBe("/api/v2/companies/test-slug/purchases/1/attachments");
+            expect(u.searchParams.get("attachToPayment")).toBe("false");
+            expect(u.searchParams.get("attachToSale")).toBe("true");
+            expect(init.method).toBe("POST");
+            expect(init.headers.Authorization).toBe("Bearer test-token");
+            expect(init.headers["Content-Type"]).toBeUndefined();
+            expect(init.body).toBe(form);
+            expect(result).toEqual({
+                created: true,
+                location: "/companies/test-slug/purchases/1/attachments/2",
+            });
+        });
+
+        it("throws on non-ok response", async () => {
+            mockFetch.mockResolvedValue(makeResponse(400, "Bad Request"));
+            await expect(
+                uploadMultipart("/companies/test-slug/purchases/1/attachments", {}, new FormData()),
+            ).rejects.toThrow("Fiken 400: Bad Request");
         });
     });
 });

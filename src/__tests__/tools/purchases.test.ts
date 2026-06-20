@@ -1,18 +1,23 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("../../client.js", () => ({
     get: vi.fn(),
     mutate: vi.fn(),
+    uploadMultipart: vi.fn(),
     cp: vi.fn((path: string) => `/companies/test-slug${path}`),
     slug: vi.fn(() => "test-slug"),
 }));
 
-import { get, mutate } from "../../client.js";
+import { get, mutate, uploadMultipart } from "../../client.js";
 import { register } from "../../tools/purchases.js";
 import { createMockServer } from "../helpers.js";
 
 const mockGet = vi.mocked(get);
 const mockMutate = vi.mocked(mutate);
+const mockUploadMultipart = vi.mocked(uploadMultipart);
 const server = createMockServer();
 
 beforeAll(() => {
@@ -125,6 +130,118 @@ describe("fiken_get_purchase_attachments", () => {
             purchaseId: 999,
         });
         expect(result.isError).toBe(true);
+    });
+});
+
+describe("fiken_add_purchase_attachment", () => {
+    it("uploads a base64 attachment to a purchase", async () => {
+        mockUploadMultipart.mockResolvedValue({
+            created: true,
+            location: "/companies/test-slug/purchases/1/attachments/2",
+        });
+
+        const result = await server.getHandler("fiken_add_purchase_attachment")({
+            purchaseId: 1,
+            filename: "receipt.pdf",
+            fileBase64: Buffer.from("pdf").toString("base64"),
+            attachToSale: true,
+            attachToPayment: false,
+        });
+
+        expect(mockUploadMultipart).toHaveBeenCalledOnce();
+        const [path, params, form] = mockUploadMultipart.mock.calls[0];
+        expect(path).toBe("/companies/test-slug/purchases/1/attachments");
+        expect(params).toEqual({ attachToPayment: false, attachToSale: true });
+        expect(form.get("filename")).toBe("receipt.pdf");
+        expect((form.get("file") as Blob).size).toBe(3);
+        expect(result.content[0].text).toContain("created");
+    });
+
+    it("uploads a file path attachment and derives filename when omitted", async () => {
+        mockUploadMultipart.mockResolvedValue({
+            created: true,
+            location: "/companies/test-slug/purchases/1/attachments/2",
+        });
+        const dir = await mkdtemp(join(tmpdir(), "fiken-mcp-"));
+        const filePath = join(dir, "invoice.pdf");
+        await writeFile(filePath, Buffer.from("pdf"));
+
+        try {
+            const result = await server.getHandler("fiken_add_purchase_attachment")({
+                purchaseId: 1,
+                filePath,
+                attachToPayment: true,
+            });
+
+            const [, params, form] = mockUploadMultipart.mock.calls[0];
+            expect(params).toEqual({ attachToPayment: true, attachToSale: undefined });
+            expect(form.get("filename")).toBe("invoice.pdf");
+            expect((form.get("file") as Blob).size).toBe(3);
+            expect(result.isError).toBeUndefined();
+        } finally {
+            await rm(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("rejects missing and duplicate file sources", async () => {
+        const missing = await server.getHandler("fiken_add_purchase_attachment")({
+            purchaseId: 1,
+            filename: "receipt.pdf",
+            attachToSale: true,
+        });
+        expect(missing.isError).toBe(true);
+        expect(missing.content[0].text).toContain("Either filePath or fileBase64 is required");
+
+        const duplicate = await server.getHandler("fiken_add_purchase_attachment")({
+            purchaseId: 1,
+            filename: "receipt.pdf",
+            filePath: "/tmp/receipt.pdf",
+            fileBase64: Buffer.from("pdf").toString("base64"),
+            attachToSale: true,
+        });
+        expect(duplicate.isError).toBe(true);
+        expect(duplicate.content[0].text).toContain("Provide only one of filePath or fileBase64");
+    });
+
+    it("rejects unsupported filenames", async () => {
+        const result = await server.getHandler("fiken_add_purchase_attachment")({
+            purchaseId: 1,
+            filename: "receipt.txt",
+            fileBase64: Buffer.from("pdf").toString("base64"),
+            attachToSale: true,
+        });
+
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain(
+            "filename must end with .png, .jpeg, .jpg, .gif, or .pdf",
+        );
+    });
+
+    it("rejects calls without an attachment classification flag", async () => {
+        const result = await server.getHandler("fiken_add_purchase_attachment")({
+            purchaseId: 1,
+            filename: "receipt.pdf",
+            fileBase64: Buffer.from("pdf").toString("base64"),
+        });
+
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain(
+            "At least one of attachToPayment or attachToSale must be true",
+        );
+    });
+
+    it("returns error on upload failure", async () => {
+        mockUploadMultipart.mockRejectedValue(new Error("Fiken 400: Bad Request"));
+
+        const result = await server.getHandler("fiken_add_purchase_attachment")({
+            purchaseId: 1,
+            filename: "receipt.pdf",
+            fileBase64: Buffer.from("pdf").toString("base64"),
+            attachToSale: true,
+        });
+
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: Fiken 400: Bad Request");
     });
 });
 

@@ -1,6 +1,8 @@
+import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp } from "../client.js";
+import { get, mutate, cp, uploadMultipart } from "../client.js";
 
 const R = { annotations: { readOnlyHint: true } } as const;
 const W = { annotations: { readOnlyHint: false } } as const;
@@ -42,6 +44,53 @@ const draftSchema = z.object({
     paid: z.boolean().optional(),
     paymentDate: z.string().optional().describe("YYYY-MM-DD"),
 });
+
+const attachmentSchema = z
+    .object({
+        purchaseId: z.number().int(),
+        filename: z
+            .string()
+            .optional()
+            .describe(
+                "Filename for the attachment. Must end with .png, .jpeg, .jpg, .gif, or .pdf",
+            ),
+        filePath: z.string().optional().describe("Local path to the attachment file"),
+        fileBase64: z.string().optional().describe("Base64-encoded attachment file contents"),
+        attachToPayment: z.boolean().optional(),
+        attachToSale: z.boolean().optional(),
+    })
+    .superRefine((value, ctx) => {
+        if (!value.filePath && !value.fileBase64) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Either filePath or fileBase64 is required",
+            });
+        }
+        if (value.filePath && value.fileBase64) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Provide only one of filePath or fileBase64",
+            });
+        }
+        if (value.fileBase64 && !value.filename) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "filename is required when using fileBase64",
+            });
+        }
+        if (!value.attachToPayment && !value.attachToSale) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "At least one of attachToPayment or attachToSale must be true",
+            });
+        }
+    });
+
+function assertSupportedAttachmentFilename(filename: string) {
+    if (!/\.(png|jpe?g|gif|pdf)$/i.test(filename)) {
+        throw new Error("filename must end with .png, .jpeg, .jpg, .gif, or .pdf");
+    }
+}
 
 export function register(server: McpServer) {
     server.registerTool(
@@ -149,6 +198,47 @@ export function register(server: McpServer) {
         async ({ purchaseId }) => {
             try {
                 return ok(await get(cp(`/purchases/${purchaseId}/attachments`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_add_purchase_attachment",
+        {
+            ...W,
+            description: "Creates and adds a new attachment to a purchase",
+            inputSchema: attachmentSchema,
+        },
+        async (rawInput) => {
+            try {
+                const {
+                    purchaseId,
+                    filename,
+                    filePath,
+                    fileBase64,
+                    attachToPayment,
+                    attachToSale,
+                } = attachmentSchema.parse(rawInput);
+                const resolvedFilename = filename ?? basename(filePath!);
+                assertSupportedAttachmentFilename(resolvedFilename);
+
+                const bytes =
+                    fileBase64 !== undefined
+                        ? Buffer.from(fileBase64, "base64")
+                        : await readFile(filePath!);
+                const form = new FormData();
+                form.append("filename", resolvedFilename);
+                form.append("file", new Blob([bytes]), resolvedFilename);
+
+                return ok(
+                    await uploadMultipart(
+                        cp(`/purchases/${purchaseId}/attachments`),
+                        { attachToPayment, attachToSale },
+                        form,
+                    ),
+                );
             } catch (e) {
                 return err(e);
             }
